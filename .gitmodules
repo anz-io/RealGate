@@ -1,0 +1,3 @@
+[submodule "submodules/morpho-blue"]
+	path = submodules/morpho-blue
+	url = git@github.com:morpho-org/morpho-blue.git
