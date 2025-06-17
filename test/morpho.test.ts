@@ -12,6 +12,7 @@ import { IIrm, IMorpho, IOracle, IERC20, IMockERC20, IMockOracle } from "../type
 import { MarketParamsStruct } from "../typechain-types/contracts/interface/IMorpho.sol/IMorpho"
 
 const GREEN = "\x1b[32m"
+const PURPLE = "\x1b[35m"
 const BLUE = "\x1b[34m"
 const RESET = "\x1b[0m"
 
@@ -30,7 +31,7 @@ async function getVirtualTime(): Promise<string> {
 describe("test the functions", function () {
 
   async function deployContracts() {
-    const [admin, operator, user1, user2] = await ethers.getSigners()
+    const [admin, operator, user1, user2, user3] = await ethers.getSigners()
 
     const morphoFactory = await ethers.getContractFactory(
       MorphoArtifact.abi, MorphoArtifact.bytecode.object
@@ -44,7 +45,7 @@ describe("test the functions", function () {
     const irmAddress = await irm.getAddress()
 
     return {
-      admin, operator, user1, user2,
+      admin, operator, user1, user2, user3,
       morpho, morphoAddress, irm, irmAddress,
     }
   }
@@ -57,7 +58,7 @@ describe("test the functions", function () {
 
   it("should finish morpho functions correctly", async function () {
     const {
-      admin, operator, user1, user2,
+      admin, operator, user1, user2, user3,
       morpho, morphoAddress, irm, irmAddress,
     } = await loadFixture(deployContracts)
 
@@ -99,6 +100,7 @@ describe("test the functions", function () {
     await mockWBTC.setBalance(user2.address, parseUnits("500", 8))
     await mockUSDC.setBalance(user1.address, parseUnits("2000000", 6))
     await mockUSDC.setBalance(user2.address, parseUnits("2000000", 6))
+    await mockUSDC.setBalance(user3.address, parseUnits("2000000", 6))
     await mockOracle.setPrice(parseUnits("1000", 36))    // 1 unit(1e-8) WBTC -> 1000 unit(1e-6) USDC
 
     console.log(`\n\t ${await getVirtualTime()} Initial balances:`)
@@ -116,7 +118,7 @@ describe("test the functions", function () {
     await mockUSDC.connect(user1).approve(morphoAddress, parseUnits("2000000", 6))
     await morpho.connect(user1).supply(
       wbtcUsdcMarket,
-      parseUnits("500000", 6),
+      parseUnits("600000", 6),
       0,
       user1.address,
       "0x"
@@ -129,9 +131,11 @@ describe("test the functions", function () {
       user1.address,
     )
     expect((await morpho.position(wbtcUsdcMarketId, user1.address))[0])
-      .equal(parseUnits("400000", 6) * 1000000n)    // Should be 4000000 USDC shares
+      .equal(parseUnits("500000", 6) * 1000000n)    // Should be 4000000 USDC shares
     console.log(`\n\t ${await getVirtualTime()} Supply & Withdraw:`)
-    console.log(`\t\tAlice supply 400000 $USDC`)
+    console.log(`\t\tAlice supply ${GREEN}${
+      formatUnits((await morpho.market(wbtcUsdcMarketId))[0], 6)
+    }${RESET} $USDC`)
 
     
     // SupplyCollateral & Borrow
@@ -150,7 +154,15 @@ describe("test the functions", function () {
       user2.address,
     )
     console.log(`\n\t ${await getVirtualTime()} SupplyCollateral & Borrow:`)
-    console.log(`\t\tCarol supplied 6 $WBTC, borrowed 400000 $USDC`)
+    console.log(`\t\tCarol supplied ${GREEN}${
+      formatUnits((await morpho.position(wbtcUsdcMarketId, user2.address))[2], 8)
+    }${RESET} $WBTC, borrowed ${PURPLE}${
+      formatUnits((await morpho.market(wbtcUsdcMarketId))[2], 6)
+    }${RESET} $USDC`)
+
+    const utilization = (await morpho.market(wbtcUsdcMarketId))[2] * 10n ** 18n 
+      / (await morpho.market(wbtcUsdcMarketId))[0]
+    console.log(`\t\tMarket Utilization: ${GREEN}${formatEther(utilization)}${RESET}`)
 
     await expect(morpho.connect(user2).borrow(
       wbtcUsdcMarket,
@@ -162,6 +174,9 @@ describe("test the functions", function () {
 
 
     // Time passes 100 days
+    await time.increase(86400 * 100)
+    await morpho.accrueInterest(wbtcUsdcMarket)
+
     const marketStateResult = await morpho.market(wbtcUsdcMarketId)
     const marketState = {
       totalSupplyAssets: marketStateResult[0],
@@ -171,14 +186,46 @@ describe("test the functions", function () {
       lastUpdate: marketStateResult[4],
       fee: marketStateResult[5],
     }
-    console.log(wbtcUsdcMarket, marketState)
     const borrowRateSecond = await irm.borrowRateView(wbtcUsdcMarket, marketState)
-    console.log(formatEther(borrowRateSecond * 365n * 86400n))
-    await time.increase(86400 * 100)
-    await morpho.accrueInterest(wbtcUsdcMarket)
-    console.log(await morpho.market(wbtcUsdcMarketId))
+    const borrowRateAnnual = formatEther(borrowRateSecond * 365n * 86400n * 100n)
+
+    console.log(`\n\t ${await getVirtualTime()} 100 days after:`)
+    console.log(`\t\tAnnual Borrow Rate: ${GREEN}${Number(borrowRateAnnual).toFixed(2)}%${RESET}`)
+    console.log(`\t\tCarol's debt (market's total debt): ${PURPLE}${
+      formatUnits((await morpho.market(wbtcUsdcMarketId))[2], 6)
+    }${RESET} $USDC`)
 
 
+    // Price dump 20%, liquidate Carol
+    await mockOracle.setPrice(parseUnits("800", 36))  // 1 unit(1e-8) WBTC -> 800 unit(1e-6) USDC
+    await mockUSDC.connect(user3).approve(morphoAddress, parseUnits("2000000", 6))
+    const orignalUsdcBalance = await mockUSDC.balanceOf(user3.address)
+    await morpho.connect(user3).liquidate(
+      wbtcUsdcMarket,
+      user2.address,
+      0,
+      parseUnits("400000", 6 + 6),
+      "0x",
+    )
+    console.log(`\n\t ${await getVirtualTime()} Price dump 20%, liquidate Carol:`)
+    console.log(`\t\tCarol's remaining colleteral: ${GREEN}${
+      formatUnits((await morpho.position(wbtcUsdcMarketId, user2.address))[2], 8)
+    }${RESET} $WBTC`)
+    console.log(`\t\tCarol's remaining debt: ${PURPLE}${
+      formatUnits((await morpho.position(wbtcUsdcMarketId, user2.address))[1], 6 + 6)
+    }${RESET} Shares`)
+
+    console.log(`\t\tDavid(Liquidator) received ${GREEN}${
+      formatUnits(await mockWBTC.balanceOf(user3.address), 8)
+    }${RESET} $WBTC`)
+    console.log(`\t\tDavid(Liquidator) spent ${PURPLE}${
+      formatUnits(orignalUsdcBalance - (await mockUSDC.balanceOf(user3.address)), 6)
+    }${RESET} $USDC`)
+
+    const netProfit = (await mockWBTC.balanceOf(user3.address)) * (await mockOracle.price()) / 10n ** 36n
+      - (orignalUsdcBalance - await mockUSDC.balanceOf(user3.address))
+    console.log(`\t\tDavid(Liquidator)'s net profit: ${GREEN}${formatUnits(netProfit, 6)}${RESET} $USDC`)
+    
   })
 
 })
