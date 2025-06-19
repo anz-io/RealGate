@@ -10,7 +10,8 @@ import {MathLib, WAD} from "./libraries/MathLib.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract LeverageEngineBase is OwnableUpgradeable, IMorphoFlashLoanCallback {
+
+contract LeverageEngine is OwnableUpgradeable, IMorphoFlashLoanCallback {
 
     // ============================= Libraries =============================
 
@@ -34,6 +35,7 @@ contract LeverageEngineBase is OwnableUpgradeable, IMorphoFlashLoanCallback {
     // ======================= Modifier & Initializer ======================
 
     function initialize(address morpho_) initializer public {
+        __Ownable_init(_msgSender());
         MORPHO = morpho_;
     }
 
@@ -68,6 +70,7 @@ contract LeverageEngineBase is OwnableUpgradeable, IMorphoFlashLoanCallback {
         uint256 baseAssets,
         uint256 multiplier,
         uint256 maxSlippage,
+        address onBehalf,
         address rytTeller       // TODO: add annotation
     ) public {
         // Check conditions
@@ -96,37 +99,40 @@ contract LeverageEngineBase is OwnableUpgradeable, IMorphoFlashLoanCallback {
             marketParams.loanToken, 
             flashloanQuoteAssets, 
             abi.encode(
-                rytTeller,
+                marketParams,
                 baseAssets,
                 minOutBaseAssets,
-                marketParams
+                onBehalf,
+                rytTeller
             )
         );
 
 
     }
 
-    // Should only be called by Morpho?
+    // TODO: add annotation
     function onMorphoFlashLoan(uint256 assets, bytes calldata data) public onlyMorpho {
         // Decode calldata
         (
-            address rytTeller, 
+            MarketParams memory marketParams,
             uint256 baseAssets,
             uint256 minOutBaseAssets,
-            MarketParams memory marketParams
-        ) = abi.decode(data, (address, uint256, uint256, MarketParams));
+            address onBehalf,
+            address rytTeller
+        ) = abi.decode(data, (MarketParams, uint256, uint256, address, address));
 
         // Swap quote token (loan token) to base token (collateral token)
         IERC20(marketParams.loanToken).forceApprove(rytTeller, assets);
         uint256 outBaseAssets = IRytTeller(rytTeller).invest(assets, minOutBaseAssets);
+        require(outBaseAssets >= minOutBaseAssets, "swap-out assets too low");
 
         // Supply collateral token (base token)
         uint256 totalBaseAssets = baseAssets + outBaseAssets;
         IERC20(marketParams.collateralToken).forceApprove(MORPHO, totalBaseAssets);
-        IMorpho(MORPHO).supplyCollateral(marketParams, totalBaseAssets, address(this), "");
+        IMorpho(MORPHO).supplyCollateral(marketParams, totalBaseAssets, onBehalf, "");
 
         // Borrow loan token (quote token)
-        IMorpho(MORPHO).borrow(marketParams, assets, 0, address(this), address(this));
+        IMorpho(MORPHO).borrow(marketParams, assets, 0, onBehalf, address(this));
 
         // Approve to repay
         IERC20(marketParams.loanToken).forceApprove(MORPHO, assets);

@@ -10,7 +10,7 @@ contract RYTOracleAdaptor is IOracle {
 
     constructor(
         address rytTeller_,
-        uint256 adjustmentFactor_  // 1e18 for RYT Teller
+        uint256 adjustmentFactor_
     ) {
         rytTeller = rytTeller_;
         adjustmentFactor = adjustmentFactor_;

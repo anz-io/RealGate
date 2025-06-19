@@ -1,6 +1,6 @@
 import { expect } from "chai"
 import { parseEther, AbiCoder, parseUnits, formatUnits, keccak256, formatEther } from "ethers"
-import { ethers, upgrades } from "hardhat"
+import { ethers } from "hardhat"
 import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers"
 
 import MorphoArtifact from "../submodules/morpho-blue/out/Morpho.sol/Morpho.json"
@@ -8,7 +8,7 @@ import AdaptiveCurveIrmArtifact from "../submodules/morpho-blue-irm/out/Adaptive
 import OracleMockArtifact from "../submodules/morpho-blue/out/OracleMock.sol/OracleMock.json"
 import ERC20MockArtifact from "../submodules/morpho-blue/out/ERC20Mock.sol/ERC20Mock.json"
 
-import { IIrm, IMorpho, IOracle, IERC20, IMockERC20, IMockOracle } from "../typechain-types"
+import { IIrm, IMorpho, IMockERC20, IMockOracle } from "../typechain-types"
 import { MarketParamsStruct } from "../typechain-types/contracts/interface/IMorpho.sol/IMorpho"
 
 const GREEN = "\x1b[32m"
