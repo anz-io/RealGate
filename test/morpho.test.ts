@@ -33,6 +33,7 @@ describe("test the functions", function () {
   async function deployContracts() {
     const [admin, operator, user1, user2, user3] = await ethers.getSigners()
 
+    // Deploy morpho contracts
     const morphoFactory = await ethers.getContractFactory(
       MorphoArtifact.abi, MorphoArtifact.bytecode.object
     )
@@ -43,25 +44,6 @@ describe("test the functions", function () {
     const morphoAddress = await morpho.getAddress()
     const irm = (await adaptiveCurveIrmFactory.deploy(morphoAddress)) as IIrm
     const irmAddress = await irm.getAddress()
-
-    return {
-      admin, operator, user1, user2, user3,
-      morpho, morphoAddress, irm, irmAddress,
-    }
-  }
-
-
-  it("should deploy the contract correctly", async function () {
-    await loadFixture(deployContracts)
-  })
-
-
-  it("should finish morpho functions correctly", async function () {
-    const {
-      admin, operator, user1, user2, user3,
-      morpho, morphoAddress, irm, irmAddress,
-    } = await loadFixture(deployContracts)
-
 
     // Deploy mock contracts
     const mockOracleFactory = await ethers.getContractFactory(
@@ -78,6 +60,30 @@ describe("test the functions", function () {
     const mockOracleAddress = await mockOracle.getAddress()
     const mockWBTCAddress = await mockWBTC.getAddress()
     const mockUSDCAddress = await mockUSDC.getAddress()
+
+    return {
+      admin, operator, user1, user2, user3,
+      morpho, morphoAddress, irm, irmAddress,
+      mockOracle, mockOracleAddress,
+      mockWBTC, mockWBTCAddress,
+      mockUSDC, mockUSDCAddress,
+    }
+  }
+
+
+  it("should deploy the contracts correctly", async function () {
+    await loadFixture(deployContracts)
+  })
+
+
+  it("should finish morpho functions correctly", async function () {
+    const {
+      admin, operator, user1, user2, user3,
+      morpho, morphoAddress, irm, irmAddress,
+      mockOracle, mockOracleAddress,
+      mockWBTC, mockWBTCAddress,
+      mockUSDC, mockUSDCAddress,
+    } = await loadFixture(deployContracts)
 
 
     // Set necessary parameters & create market
