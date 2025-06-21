@@ -10,4 +10,9 @@ interface IRytTeller {
         uint256 _amountIn, 
         uint256 _minAmountOut
     ) external returns (uint256 _amountOut);
+
+    function redeem(
+        uint256 _amountIn, 
+        uint256 _minAmountOut
+    ) external returns (uint256 _amountOut);
 }

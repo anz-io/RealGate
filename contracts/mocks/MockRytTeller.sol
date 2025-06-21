@@ -32,5 +32,19 @@ contract MockRytTeller is IRytTeller {
         baseToken.transferFrom(msg.sender, address(this), _amountIn);
         quoteToken.transfer(msg.sender, _amountOut);
     }
-    
+
+    function quoteRedeem(
+        uint256 _amountIn
+    ) public pure returns (uint256 _amountOut, uint256 _fee, uint256 _price) {
+        _price = 1050 * ORACLE_PRICE_SCALE;
+        _fee = 0;
+        _amountOut = _amountIn * _price / ORACLE_PRICE_SCALE;
+    }
+
+    function redeem(uint256 _amountIn, uint256 _minAmountOut) external returns (uint256 _amountOut) {
+        (_amountOut, , ) = quoteRedeem(_amountIn);
+        require(_amountOut >= _minAmountOut, "MockRytTeller: Insufficient output amount");
+        quoteToken.transferFrom(msg.sender, address(this), _amountIn);
+        baseToken.transfer(msg.sender, _amountOut);
+    }
 }
