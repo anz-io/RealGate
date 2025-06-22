@@ -99,6 +99,7 @@ describe("test the functions", function () {
     ))[0]).to.equal(parseUnits("1", 8))   // equals to 1 $WBTC
 
     await mockUSDC.setBalance(user1.address, parseUnits("1105000", 6))
+    await mockUSDC.setBalance(mockRytTellerAddress, parseUnits("1000000", 8))
     await mockWBTC.setBalance(mockRytTellerAddress, parseUnits("100", 8))
 
     await mockUSDC.connect(user1).approve(mockRytTellerAddress, parseUnits("105000", 6))
@@ -129,6 +130,8 @@ describe("test the functions", function () {
     const leverageEngine = await upgrades.deployProxy(leverageEngineFactory, [morphoAddress])
     const leverageEngineAddress = await leverageEngine.getAddress()
 
+
+    // Open position
     await mockWBTC.setBalance(user2.address, parseUnits("1", 8))
     await mockWBTC.connect(user2).approve(leverageEngineAddress, parseUnits("1", 8))
     await morpho.connect(user2).setAuthorization(leverageEngineAddress, true)
@@ -148,6 +151,22 @@ describe("test the functions", function () {
     console.log(`\t\tBob's debt: ${PURPLE}${
       formatUnits((await morpho.position(wbtcUsdcMarketId, user2.address))[1], 6 + 6)
     }${RESET} $USDC`)
+
+
+    // Close position
+    const wbtcBalanceBefore = await mockWBTC.balanceOf(user2.address)
+    const usdcBalanceBefore = await mockUSDC.balanceOf(user2.address)
+    await leverageEngine.connect(user2).closePosition(
+      wbtcUsdcMarket,
+      0,
+      user2.address,
+      mockRytTellerAddress,
+    )
+    console.log(`\n\t ${await getVirtualTime()} Bob close his position on WBTC-USDC`)
+    expect(await morpho.position(wbtcUsdcMarketId, user2.address)).to.deep.equal([0, 0, 0])
+    console.log(`\t\tBob's $USDC balance: ${PURPLE}+ ${
+      formatUnits(await mockUSDC.balanceOf(user2.address) - usdcBalanceBefore, 6)
+    }${RESET}`)
 
 
   })

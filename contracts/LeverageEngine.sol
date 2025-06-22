@@ -136,20 +136,23 @@ contract LeverageEngine is OwnableUpgradeable, IMorphoFlashLoanCallback {
         address rytTeller
     ) public {
         Position memory position = IMorpho(MORPHO).position(id(marketParams), onBehalf);
+        uint256 maxFlashLoanAssets = IERC20(marketParams.loanToken).balanceOf(MORPHO);
 
         IMorpho(MORPHO).flashLoan(
-            marketParams.collateralToken,
-            position.collateral,
+            marketParams.loanToken,
+            maxFlashLoanAssets,     // flashloan enough loan token to repay the position
             abi.encode(
                 OnFlashLoanAction.ClosePosition,
                 marketParams,
-                0,  // will swap all collateral token out
+                position.collateral,
                 minOutQuoteAssets,
                 position.borrowShares,
                 onBehalf,
                 rytTeller
             )
         );
+
+        IERC20(marketParams.loanToken).forceApprove(MORPHO, 0);
     }
 
     // TODO: add annotation
@@ -184,21 +187,17 @@ contract LeverageEngine is OwnableUpgradeable, IMorphoFlashLoanCallback {
         }
 
         else if (action == OnFlashLoanAction.ClosePosition) {
-            // Swap collateral token (base token) to loan token (quote token)
-            IERC20(marketParams.collateralToken).forceApprove(rytTeller, assets);
-            uint256 outQuoteAssets = IRytTeller(rytTeller).redeem(assets, minOutAssets);
-            require(outQuoteAssets >= minOutAssets, "swap-out assets too low");
-
             // Repay loan token (quote token)
             IERC20(marketParams.loanToken).forceApprove(MORPHO, type(uint256).max);
             (uint256 repayAssets, ) = IMorpho(MORPHO).repay(marketParams, 0, repayShares, onBehalf, "");
-            IERC20(marketParams.loanToken).forceApprove(MORPHO, 0);
 
             // Withdraw collateral token (base token)
-            IMorpho(MORPHO).withdrawCollateral(marketParams, assets, onBehalf, address(this));
+            IMorpho(MORPHO).withdrawCollateral(marketParams, inAssets, onBehalf, address(this));
 
-            // Approve to repay collateral token (base token)
-            IERC20(marketParams.collateralToken).forceApprove(MORPHO, assets);
+            // Swap collateral token (base token) to loan token (quote token)
+            IERC20(marketParams.collateralToken).forceApprove(rytTeller, inAssets);
+            uint256 outQuoteAssets = IRytTeller(rytTeller).redeem(inAssets, minOutAssets);
+            require(outQuoteAssets >= minOutAssets, "swap-out assets too low");
 
             // Send remaining loan token (quote token) to onBehalf
             IERC20(marketParams.loanToken).safeTransfer(onBehalf, outQuoteAssets - repayAssets);
