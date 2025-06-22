@@ -10,6 +10,19 @@ const config: HardhatUserConfig = {
       viaIR: true,
     },
   },
+  networks: {
+    sepolia: {
+      url: process.env.RPC_SEPOLIA,
+      accounts: [
+        process.env.PRIVATE_KEY_ADMIN!,
+      ]
+    }
+  },
+  etherscan: {
+    apiKey: {
+      sepolia: process.env.API_ETHERSCAN!,
+    }
+  }
 };
 
 export default config;
