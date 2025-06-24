@@ -2,7 +2,7 @@ import "dotenv/config"
 import { upgradeContract } from "./utils"
 
 async function main() {
-  await upgradeContract(process.env.USDC_ADDRESS!, "UpgradeableUSDC")
+  await upgradeContract(process.env.SEPOLIA_LEVERAGE_ENGINE!, "LeverageEngine", true)
 }
 
 main()
@@ -11,4 +11,3 @@ main()
     console.error(error);
     process.exit(1);
   });
-

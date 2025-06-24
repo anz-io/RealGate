@@ -26,16 +26,28 @@ contract LeverageEngine is OwnableUpgradeable, IMorphoFlashLoanCallback {
     uint256 constant ORACLE_PRICE_SCALE = 1e36;
     uint256 constant MARKET_PARAMS_BYTES_LENGTH = 5 * 32;
 
-
-    // ============================= Parameters ============================
-
     address public MORPHO;
 
-    
-    // ============================== Storage ==============================
+    uint256 internal _sendbackQuoteAssets;
 
 
     // =============================== Events ==============================
+
+    event PositionOpened(
+        MarketParams marketParams,
+        uint256 baseAssets,
+        uint256 multiplier,
+        uint256 maxSlippage,
+        address onBehalf,
+        Position position
+    );
+    event PositionClosed(
+        MarketParams marketParams,
+        uint256 minOutQuoteAssets,
+        uint256 sendbackQuoteAssets,
+        address onBehalf,
+        Position position
+    );
 
 
     // ======================= Modifier & Initializer ======================
@@ -51,7 +63,6 @@ contract LeverageEngine is OwnableUpgradeable, IMorphoFlashLoanCallback {
     }
 
 
-
     // =========================== View functions ==========================
 
     /// @notice Returns the id of the market `marketParams`.
@@ -65,20 +76,37 @@ contract LeverageEngine is OwnableUpgradeable, IMorphoFlashLoanCallback {
 
     // ========================== Write functions ==========================
 
-    /// @notice Opens a leveraged position in a Morpho market through flashloan
-    /// @dev This function performs flashloan to achieve the desired leverage multiplier
-    /// @param marketParams The market parameters struct containing market configuration 
-    ///        (loanToken, collateralToken, oracle, irm, lltv)
-    /// @param baseAssets The amount of initial collateral assets to be supplied (in collateral token decimals)
-    /// @param multiplier The desired leverage multiplier, where 1e18 represents 1x leverage
-    ///        Example: 1.5e18 means the final collateral position will be 1.5x the initial assets
-    /// @param maxSlippage The maximum acceptable slippage for swaps, where 1e18 = 100%.
-    ///        For example, 0.05e18 means a maximum slippage of 5%, so 
-    ///         minAmountOut = price * amountIn * (1 - maxSlippage / 1e18)
-    ///         where `minAmountOut` is the minimum amount of collateral token that must be received in the swap.
-    /// @custom:requirements
-    ///   - multiplier must be > 1e18 (no de-leveraging)
-    ///   - multiplier must not be too high to maintain position health above market's LLTV after leverage
+    /**
+     * @notice Opens a leveraged position in a Morpho market using a flash loan.
+     * @dev This function supplies the specified collateral, borrows additional assets via flash loan,
+     *      and supplies the total collateral to achieve the desired leverage. The function ensures
+     *      the leverage multiplier is valid and that slippage constraints are respected.
+     *      The flash loan callback will execute the actual leveraged supply and any required swaps.
+     * @param marketParams Struct containing the market configuration:
+     *        - loanToken: The address of the asset to borrow (debt token)
+     *        - collateralToken: The address of the asset to supply as collateral
+     *        - oracle: The address of the price oracle for the collateral
+     *        - irm: The address of the interest rate model
+     *        - lltv: The loan-to-value ratio (scaled by 1e18)
+     *        Note that the marketParams must be registered in Morpho before calling this function.
+     * @param baseAssets The amount of collateral token to supply initially (in collateral token decimals)
+     * @param multiplier The target leverage multiplier (scaled by 1e18, e.g., 2e18 = 2x leverage).
+     *                   Must be greater than 1e18 (no deleveraging) and within safe limits.
+     * @param maxSlippage The maximum allowed slippage for swaps (scaled by 1e18, e.g., 0.05e18 = 5%).
+     *                   Used to calculate the minimum acceptable amount received in swaps.
+     * @param onBehalf The address for whom the leveraged position is opened.
+     *                   Must be authorized in Morpho.
+     * @param rytTeller The address of the RytTeller contract (used for additional integrations).
+     * @custom:requirements
+     *   - baseAssets must be greater than 0.
+     *   - multiplier must be greater than 1e18 and not exceed the maximum allowed by the market's LLTV.
+     *   - maxSlippage must be less than 1e18 (100%).
+     *   - The lending pool must have sufficient loan token balance for the flash loan.
+     * @custom:actions
+     *   - Transfers the initial collateral from the user.
+     *   - Initiates a flash loan for the additional borrowed amount.
+     *   - Encodes all parameters and calls the Morpho contract's flashLoan function.
+     */
     function openPosition(
         MarketParams memory marketParams,
         uint256 baseAssets,
@@ -126,18 +154,45 @@ contract LeverageEngine is OwnableUpgradeable, IMorphoFlashLoanCallback {
                 rytTeller
             )
         );
+
+        // Event
+        emit PositionOpened(
+            marketParams, baseAssets, multiplier, maxSlippage, onBehalf, 
+            IMorpho(MORPHO).position(id(marketParams), onBehalf)
+        );
     }
     
-    // Close position and get the remaining loan token (quote token)
+    /**
+     * @notice Closes a leveraged position in a Morpho market.
+     * @dev Uses a flash loan to repay debt and withdraw collateral.
+     *      The actual close logic is handled in the flash loan callback.
+     * @param marketParams Struct with market configuration:
+     *        - loanToken: Debt token address
+     *        - collateralToken: Collateral token address
+     *        - oracle: Price oracle address
+     *        - irm: Interest rate model address
+     *        - lltv: Loan-to-value ratio (scaled by 1e18)
+     *        Note that the marketParams must be registered in Morpho before calling this function.
+     * @param minOutQuoteAssets Minimum loan token to receive when swapping.
+     * @param onBehalf Address for whom the position is closed.
+     * @param rytTeller RytTeller contract address for swaps or integrations.
+     * @custom:actions
+     *   - Gets user position and available loan token.
+     *   - Starts a flash loan to repay the position.
+     *   - Encodes parameters and calls Morpho's flashLoan.
+     *   - Resets loan token approval after operation.
+     */
     function closePosition(
         MarketParams memory marketParams,
         uint256 minOutQuoteAssets,
         address onBehalf,
         address rytTeller
     ) public {
+        // Retrieve position information
         Position memory position = IMorpho(MORPHO).position(id(marketParams), onBehalf);
         uint256 maxFlashLoanAssets = IERC20(marketParams.loanToken).balanceOf(MORPHO);
 
+        // Flashloan
         IMorpho(MORPHO).flashLoan(
             marketParams.loanToken,
             maxFlashLoanAssets,     // flashloan enough loan token to repay the position
@@ -152,10 +207,38 @@ contract LeverageEngine is OwnableUpgradeable, IMorphoFlashLoanCallback {
             )
         );
 
+        // Reset approval
         IERC20(marketParams.loanToken).forceApprove(MORPHO, 0);
+
+        // Event
+        emit PositionClosed(
+            marketParams, minOutQuoteAssets, _sendbackQuoteAssets, onBehalf, 
+            IMorpho(MORPHO).position(id(marketParams), onBehalf)
+        );
+        _sendbackQuoteAssets = 0;
     }
 
-    // TODO: add annotation
+    /**
+     * @notice Callback after Morpho flash loan, for open/close position.
+     * @dev Decodes parameters and runs logic based on action type.
+     *      Only Morpho can call this function.
+     * @param assets Amount of loan token from flash loan.
+     * @param data ABI-encoded action type, market, amounts, slippage, addresses.
+     * @custom:actions
+     *   - Decodes action and parameters from calldata.
+     *   - For OpenPosition:
+     *       - Swaps loan token to collateral via RytTeller.
+     *       - Supplies collateral to Morpho.
+     *       - Borrows loan token and approves repayment.
+     *   - For ClosePosition:
+     *       - Repays loan.
+     *       - Withdraws collateral from Morpho.
+     *       - Swaps collateral to loan token via RytTeller.
+     *       - Sends remaining loan token to user.
+     * @custom:requirements
+     *   - Only Morpho can call.
+     *   - Swaps must meet minimum output for slippage protection.
+     */
     function onMorphoFlashLoan(uint256 assets, bytes calldata data) public onlyMorpho {
         // Decode calldata
         (
@@ -201,11 +284,8 @@ contract LeverageEngine is OwnableUpgradeable, IMorphoFlashLoanCallback {
 
             // Send remaining loan token (quote token) to onBehalf
             IERC20(marketParams.loanToken).safeTransfer(onBehalf, outQuoteAssets - repayAssets);
+            _sendbackQuoteAssets = outQuoteAssets - repayAssets;     // Only for event
         }
     }
-
-
-    // ====================== Write functions - admin ======================
-
 
 }

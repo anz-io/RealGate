@@ -8,7 +8,7 @@ import AdaptiveCurveIrmArtifact from "../submodules/morpho-blue-irm/out/Adaptive
 import OracleMockArtifact from "../submodules/morpho-blue/out/OracleMock.sol/OracleMock.json"
 import ERC20MockArtifact from "../submodules/morpho-blue/out/ERC20Mock.sol/ERC20Mock.json"
 
-import { IIrm, IMorpho, IOracle, IERC20, IMockERC20, IMockOracle, MockRytTeller, RYTOracleAdaptor } from "../typechain-types"
+import { IIrm, IMorpho, IMockERC20, MockRytTeller, RytOracleAdaptor } from "../typechain-types"
 import { MarketParamsStruct } from "../typechain-types/contracts/interface/IMorpho.sol/IMorpho"
 
 const GREEN = "\x1b[32m"
@@ -61,8 +61,8 @@ describe("test the functions", function () {
     const mockRytTellerAddress = await mockRytTeller.getAddress()
 
     const mockRytOracle = (await (
-      await ethers.getContractFactory("RYTOracleAdaptor")
-    ).deploy(mockRytTellerAddress, 1n)) as RYTOracleAdaptor
+      await ethers.getContractFactory("RytOracleAdaptor")
+    ).deploy(mockRytTellerAddress, 1n)) as RytOracleAdaptor
     const mockRytOracleAddress = await mockRytOracle.getAddress()
 
 

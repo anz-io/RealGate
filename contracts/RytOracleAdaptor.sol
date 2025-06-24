@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {IOracle} from "./interface/IOracle.sol";
 import {IRytTeller} from "./interface/IRytTeller.sol";
 
-contract RYTOracleAdaptor is IOracle {
+contract RytOracleAdaptor is IOracle {
     address public immutable rytTeller;
     uint256 public immutable adjustmentFactor;
 
