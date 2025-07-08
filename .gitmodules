@@ -1,6 +1,7 @@
 [submodule "submodules/morpho-blue"]
 	path = submodules/morpho-blue
-	url = git@github.com:morpho-org/morpho-blue.git
+	url = git@github.com:anz-io/morpho-blue.git
+	branch = realgate-develop
 [submodule "submodules/morpho-blue-irm"]
 	path = submodules/morpho-blue-irm
 	url = git@github.com:morpho-org/morpho-blue-irm.git
@@ -9,4 +10,5 @@
 	url = git@github.com:morpho-org/morpho-blue-oracles.git
 [submodule "submodules/metamorpho-v1.1"]
 	path = submodules/metamorpho-v1.1
-	url = git@github.com:morpho-org/metamorpho-v1.1.git
+	url = git@github.com:anz-io/metamorpho-v1.1.git
+	branch = realgate-develop

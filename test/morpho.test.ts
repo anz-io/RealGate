@@ -206,6 +206,22 @@ describe("test the functions", function () {
     await mockOracle.setPrice(parseUnits("800", 36))  // 1 unit(1e-8) WBTC -> 800 unit(1e-6) USDC
     await mockUSDC.connect(user3).approve(morphoAddress, parseUnits("2000000", 6))
     const orignalUsdcBalance = await mockUSDC.balanceOf(user3.address)
+    await expect(morpho.connect(user3).liquidate(
+      wbtcUsdcMarket,
+      user2.address,
+      0,
+      parseUnits("400000", 6 + 6),
+      "0x",
+    )).to.be.revertedWith("not whitelisted liquidator")
+
+    // Set liquidator and liquidate
+    await admin.sendTransaction({
+      to: morphoAddress,
+      data: "0x4453a374"    // selector of `setLiquidator(address,bool)`
+        + AbiCoder.defaultAbiCoder().encode(["address", "bool"], [user3.address, true]).slice(2),
+      value: 0,
+      gasLimit: 1000000,
+    })
     await morpho.connect(user3).liquidate(
       wbtcUsdcMarket,
       user2.address,
