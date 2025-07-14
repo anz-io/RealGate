@@ -113,7 +113,7 @@ contract LeverageEngine is OwnableUpgradeable, IMorphoFlashLoanCallback {
         uint256 multiplier,
         uint256 maxSlippage,
         address onBehalf,
-        address rytTeller       // TODO: add annotation
+        address rytTeller
     ) public {
         // Check conditions
         require(baseAssets > 0, "base assets must be greater than 0");
