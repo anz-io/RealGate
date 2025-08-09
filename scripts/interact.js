@@ -64,3 +64,13 @@ await metamorpho.setSupplyQueue([marketId])
 const mockusdc = await ethers.getContractAt("IERC20", "0x8d00c83b6b5da79465b1bfb45bdc01c0de122c36")
 await mockusdc.approve(await metamorpho.getAddress(), 1000000000000)
 await metamorpho.deposit(100000000, admin.address)
+
+
+// deploy mock oracle
+const mockOracleFactory = ethers.getContractFactory("MockOracle")
+const mockOracle = await mockOracleFactory.deploy()
+await mockOracle.setPrice(ethers.parseUnits("1", 18))
+/**
+ * 1e36 PumpBTC -> 1e18 $PumpBTC -> 120000e18 $USDC -> 120000e24 USDC 
+ *   -> 1.2e29 USDC, price = 120000000000e18
+ */
