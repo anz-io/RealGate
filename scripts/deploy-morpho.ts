@@ -1,6 +1,5 @@
 import "dotenv/config"
 import { ethers } from "hardhat"
-import { Contract } from "ethers"
 import { IIrm, IMetaMorphoV1_1Factory, IMorpho } from "../typechain-types"
 
 import MorphoArtifact from "../submodules/morpho-blue/out/Morpho.sol/Morpho.json"
