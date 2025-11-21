@@ -20,10 +20,19 @@ const config: HardhatUserConfig = {
     }
   },
   etherscan: {
-    apiKey: {
-      sepolia: process.env.API_ETHERSCAN!,
-    }
+    apiKey: process.env.API_ETHERSCAN!,
   }
 };
 
 export default config;
+
+/**
+ * Use forge to verify Vault contract. (MetaMorphoV1_1.initialize selector: e4e1ff01)
+ * forge verify-contract \
+    --etherscan-api-key XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX \
+    --chain sepolia \
+    --constructor-args 0x000000000000000000000000CB42eF3eCd76918407A567f7e28ae3B1d10D8E1A \
+    --compiler-version 0.8.28 \
+    0xXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX \
+    ./submodules/metamorpho-v1.1/lib/openzeppelin-contracts/contracts/proxy/beacon/BeaconProxy.sol:BeaconProxy
+ */
