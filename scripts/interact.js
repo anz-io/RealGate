@@ -1,13 +1,22 @@
 // npx hardhat console --network sepolia
 
 const [admin, user] = await ethers.getSigners()
-const morpho = await ethers.getContractAt("IMorpho", "0x805bAb63e20c26D1EAdEBD62773154Da0506c283")
 
+const Morpho = require(path.join(
+  process.cwd(),
+  "submodules/morpho-blue/out/Morpho.sol/Morpho.json",
+))
 const MetaMorphoV1_1Factory = require(path.join(
   process.cwd(), 
   "submodules/metamorpho-v1.1/out/MetaMorphoV1_1Factory.sol/MetaMorphoV1_1Factory.json",
 ))
 
+const morpho = await ethers.getContractAt(
+  Morpho.abi, "0x805bAb63e20c26D1EAdEBD62773154Da0506c283"
+)
+const metamorphoFactory = await ethers.getContractAt(
+  MetaMorphoV1_1Factory.abi, "0x8032629E63D026c59d2F53c5eFb3eCeed3387fD5"
+)
 
 // Allowed LLTVs: 38.5%, 62.5%, 77.0%, 86.0%, 91.5%, 94.5%, 96.5%, 98.0%
 await morpho.enableLltv(ethers.parseEther("0.385"))
@@ -51,9 +60,6 @@ await leverage.openPosition(
 
 
 // Create MetaMorpho Vault
-const metamorphoFactory = await ethers.getContractAt(
-  MetaMorphoV1_1Factory.abi, "0x8032629E63D026c59d2F53c5eFb3eCeed3387fD5"
-)
 await metamorphoFactory.setVaultCreator(admin.address, true)
 await metamorphoFactory.createMetaMorpho(
   admin.address,
@@ -101,3 +107,10 @@ await mockOracle.setPrice(ethers.parseUnits("1", 18))
  * 1e36 PumpBTC -> 1e18 $PumpBTC -> 120000e18 $USDC -> 120000e24 USDC 
  *   -> 1.2e29 USDC, price = 120000000000e18
  */
+
+await ethers.deployContract("MockOracle", ["Mock Oracle 1", ethers.parseUnits("1", 36)])
+await ethers.deployContract("MockOracle", ["Mock Oracle 2", ethers.parseUnits("1", 36)])
+await ethers.deployContract("MockOracle", ["Mock Oracle 3", ethers.parseUnits("1", 36)])
+
+await ethers.deployContract("MockChainlinkOracleRYT", ["0x151FFd190FaD2E46c8d67914E01A57B985C72a01"])
+
